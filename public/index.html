@@ -1,0 +1,79 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Prediction Market Maker — demo</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --line:#262b36; --ink:#e7ecf3; --dim:#93a0b4;
+          --buy:#2ea66b; --sell:#d2604a; --warn:#e0a83a; --halt:#d2604a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace; }
+  header { padding:14px 18px; border-bottom:1px solid var(--line); display:flex; gap:18px; align-items:center; }
+  header b { font-size:15px; }
+  .stress button { background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:5px 9px; cursor:pointer; }
+  .stress button:hover { border-color:var(--dim); }
+  main { display:grid; grid-template-columns: 1fr 320px; gap:14px; padding:14px 18px; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fill,minmax(330px,1fr)); gap:12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .q { font-size:11px; color:var(--dim); margin-bottom:6px; }
+  .name { font-weight:600; }
+  .row { display:flex; justify-content:space-between; margin:2px 0; }
+  .bid { color:var(--buy); } .ask { color:var(--sell); }
+  .ltp { font-size:18px; font-weight:700; }
+  .pill { font-size:10px; padding:1px 7px; border-radius:99px; border:1px solid var(--line); }
+  .s0{color:var(--dim)} .s1{color:var(--warn)} .s2{color:var(--warn)} .s3{color:var(--sell)} .s4{color:var(--halt);font-weight:700}
+  table { width:100%; border-collapse:collapse; }
+  td { padding:1px 2px; } .r { text-align:right; }
+  .book td.bidp{color:var(--buy)} .book td.askp{color:var(--sell)}
+  aside .card { margin-bottom:12px; }
+  .bar { height:6px; background:#0b0d11; border-radius:4px; overflow:hidden; margin-top:3px; }
+  .bar > i { display:block; height:100%; background:var(--buy); }
+  h3 { margin:0 0 8px; font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; }
+</style>
+<header>
+  <b>Prediction Market Maker</b>
+  <span style="color:var(--dim)">reference-anchored · inventory-aware · adaptive spread · hierarchical risk</span>
+  <span class="stress" style="margin-left:auto">stress:
+    <button onclick="stress('politics')">politics</button>
+    <button onclick="stress('sports')">sports</button>
+    <button onclick="stress('economy')">economy</button>
+  </span>
+</header>
+<main>
+  <section><div class="grid" id="markets"></div></section>
+  <aside>
+    <div class="card"><h3>Risk — Company</h3><div id="company"></div></div>
+    <div class="card"><h3>Risk — Categories</h3><div id="cats"></div></div>
+    <div class="card"><h3>Risk — Events</h3><div id="events"></div></div>
+  </aside>
+</main>
+<script>
+const f = (x)=> x===null||x===undefined ? "—" : (x*100).toFixed(1);
+function bar(u){ const pct=Math.min(100,u*100).toFixed(0); const c = u>=1?"var(--halt)":u>=.7?"var(--warn)":"var(--buy)";
+  return `<div class="bar"><i style="width:${pct}%;background:${c}"></i></div>`; }
+function scopeRow(s){ return `<div class="row"><span>${s.id}</span><span class="s${s.stage}">${(s.utilisation*100).toFixed(0)}% · S${s.stage}</span></div>${bar(s.utilisation)}`; }
+
+async function tick(){
+  const d = await (await fetch('/api/state')).json();
+  document.getElementById('markets').innerHTML = d.markets.map(m=>`
+    <div class="card">
+      <div class="q">${m.category} · ${m.eventId}</div>
+      <div class="row"><span class="name">${m.question}</span>
+        <span class="pill s${m.stage}">${m.stageName}</span></div>
+      <div class="row"><span class="ltp">${m.ltp?f(m.ltp):'—'}</span>
+        <span style="color:var(--dim)">ref ${f(m.referencePrice)} · dis ${(m.disagreement*100).toFixed(1)} · spr ${(m.spread*100).toFixed(1)}c</span></div>
+      <div class="row"><span class="bid">YES bid ${f(m.yes.bid)}</span><span class="ask">YES ask ${f(m.yes.ask)}</span></div>
+      <div class="row"><span class="bid">NO bid ${f(m.no.bid)}</span><span class="ask">NO ask ${f(m.no.ask)}</span></div>
+      <div class="row" style="color:var(--dim)"><span>inv ${m.inventory}</span><span>exp ${m.exposure} · size ${m.quoteSize}</span></div>
+      <table class="book">${
+        Array.from({length:Math.max(m.book.bids.length,m.book.asks.length)}).map((_,i)=>{
+          const b=m.book.bids[i], a=m.book.asks[i];
+          return `<tr><td class="bidp r">${b?b.qty:''}</td><td class="bidp r">${b?f(b.price):''}</td>
+                      <td class="askp r" style="padding-left:14px">${a?f(a.price):''}</td><td class="askp r">${a?a.qty:''}</td></tr>`;
+        }).join('')}</table>
+    </div>`).join('');
+  document.getElementById('company').innerHTML = scopeRow(d.risk.company);
+  document.getElementById('cats').innerHTML = d.risk.categories.map(scopeRow).join('');
+  document.getElementById('events').innerHTML = d.risk.events.map(scopeRow).join('');
+}
+async function stress(cat){ await fetch('/api/stress',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({category:cat,side:'BUY'})}); }
+setInterval(tick, 400); tick();
+</script>
