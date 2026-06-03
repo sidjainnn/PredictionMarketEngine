@@ -119,6 +119,10 @@ export class OrderBook {
     return { order, trades };
   }
 
+  ordersMatching(ids: Set<string>): Order[] {
+    return [...this.bids, ...this.asks].filter((o) => ids.has(o.id));
+  }
+
   snapshot(depth = 8): BookSnapshot {
     const agg = (orders: Order[]): BookLevel[] => {
       const m = new Map<number, number>();

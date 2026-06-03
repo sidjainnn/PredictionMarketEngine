@@ -1,79 +1,728 @@
 <!doctype html>
 <meta charset="utf-8" />
-<title>Prediction Market Maker — demo</title>
+<title>Prediction Market Maker</title>
 <style>
-  :root { --bg:#0f1115; --panel:#171a21; --line:#262b36; --ink:#e7ecf3; --dim:#93a0b4;
-          --buy:#2ea66b; --sell:#d2604a; --warn:#e0a83a; --halt:#d2604a; }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace; }
-  header { padding:14px 18px; border-bottom:1px solid var(--line); display:flex; gap:18px; align-items:center; }
-  header b { font-size:15px; }
-  .stress button { background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:5px 9px; cursor:pointer; }
-  .stress button:hover { border-color:var(--dim); }
-  main { display:grid; grid-template-columns: 1fr 320px; gap:14px; padding:14px 18px; }
-  .grid { display:grid; grid-template-columns: repeat(auto-fill,minmax(330px,1fr)); gap:12px; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
-  .q { font-size:11px; color:var(--dim); margin-bottom:6px; }
-  .name { font-weight:600; }
-  .row { display:flex; justify-content:space-between; margin:2px 0; }
-  .bid { color:var(--buy); } .ask { color:var(--sell); }
-  .ltp { font-size:18px; font-weight:700; }
-  .pill { font-size:10px; padding:1px 7px; border-radius:99px; border:1px solid var(--line); }
-  .s0{color:var(--dim)} .s1{color:var(--warn)} .s2{color:var(--warn)} .s3{color:var(--sell)} .s4{color:var(--halt);font-weight:700}
-  table { width:100%; border-collapse:collapse; }
-  td { padding:1px 2px; } .r { text-align:right; }
-  .book td.bidp{color:var(--buy)} .book td.askp{color:var(--sell)}
-  aside .card { margin-bottom:12px; }
-  .bar { height:6px; background:#0b0d11; border-radius:4px; overflow:hidden; margin-top:3px; }
-  .bar > i { display:block; height:100%; background:var(--buy); }
-  h3 { margin:0 0 8px; font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; }
-</style>
-<header>
-  <b>Prediction Market Maker</b>
-  <span style="color:var(--dim)">reference-anchored · inventory-aware · adaptive spread · hierarchical risk</span>
-  <span class="stress" style="margin-left:auto">stress:
-    <button onclick="stress('politics')">politics</button>
-    <button onclick="stress('sports')">sports</button>
-    <button onclick="stress('economy')">economy</button>
-  </span>
-</header>
-<main>
-  <section><div class="grid" id="markets"></div></section>
-  <aside>
-    <div class="card"><h3>Risk — Company</h3><div id="company"></div></div>
-    <div class="card"><h3>Risk — Categories</h3><div id="cats"></div></div>
-    <div class="card"><h3>Risk — Events</h3><div id="events"></div></div>
-  </aside>
-</main>
-<script>
-const f = (x)=> x===null||x===undefined ? "—" : (x*100).toFixed(1);
-function bar(u){ const pct=Math.min(100,u*100).toFixed(0); const c = u>=1?"var(--halt)":u>=.7?"var(--warn)":"var(--buy)";
-  return `<div class="bar"><i style="width:${pct}%;background:${c}"></i></div>`; }
-function scopeRow(s){ return `<div class="row"><span>${s.id}</span><span class="s${s.stage}">${(s.utilisation*100).toFixed(0)}% · S${s.stage}</span></div>${bar(s.utilisation)}`; }
-
-async function tick(){
-  const d = await (await fetch('/api/state')).json();
-  document.getElementById('markets').innerHTML = d.markets.map(m=>`
-    <div class="card">
-      <div class="q">${m.category} · ${m.eventId}</div>
-      <div class="row"><span class="name">${m.question}</span>
-        <span class="pill s${m.stage}">${m.stageName}</span></div>
-      <div class="row"><span class="ltp">${m.ltp?f(m.ltp):'—'}</span>
-        <span style="color:var(--dim)">ref ${f(m.referencePrice)} · dis ${(m.disagreement*100).toFixed(1)} · spr ${(m.spread*100).toFixed(1)}c</span></div>
-      <div class="row"><span class="bid">YES bid ${f(m.yes.bid)}</span><span class="ask">YES ask ${f(m.yes.ask)}</span></div>
-      <div class="row"><span class="bid">NO bid ${f(m.no.bid)}</span><span class="ask">NO ask ${f(m.no.ask)}</span></div>
-      <div class="row" style="color:var(--dim)"><span>inv ${m.inventory}</span><span>exp ${m.exposure} · size ${m.quoteSize}</span></div>
-      <table class="book">${
-        Array.from({length:Math.max(m.book.bids.length,m.book.asks.length)}).map((_,i)=>{
-          const b=m.book.bids[i], a=m.book.asks[i];
-          return `<tr><td class="bidp r">${b?b.qty:''}</td><td class="bidp r">${b?f(b.price):''}</td>
-                      <td class="askp r" style="padding-left:14px">${a?f(a.price):''}</td><td class="askp r">${a?a.qty:''}</td></tr>`;
-        }).join('')}</table>
-    </div>`).join('');
-  document.getElementById('company').innerHTML = scopeRow(d.risk.company);
-  document.getElementById('cats').innerHTML = d.risk.categories.map(scopeRow).join('');
-  document.getElementById('events').innerHTML = d.risk.events.map(scopeRow).join('');
+:root {
+  --bg:#0d1117; --panel:#161b27; --panel2:#1c2333; --line:#21293d;
+  --ink:#e2e8f5; --dim:#64748b; --dimmer:#1e2638;
+  --buy:#22c55e; --sell:#ef4444; --warn:#f59e0b; --halt:#dc2626;
+  --accent:#3b82f6; --user:#f59e0b;
+  --yes:#16a34a; --no:#b91c1c;
 }
-async function stress(cat){ await fetch('/api/stress',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({category:cat,side:'BUY'})}); }
-setInterval(tick, 400); tick();
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+     height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── HEADER ── */
+#hdr{flex-shrink:0;display:flex;align-items:center;gap:16px;padding:10px 20px;
+     border-bottom:1px solid var(--line);background:var(--panel);z-index:10}
+.brand{font-size:15px;font-weight:700;letter-spacing:-.01em;color:var(--ink)}
+.brand em{color:var(--accent);font-style:normal}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.btn-back{display:none;background:var(--panel2);border:1px solid var(--line);color:var(--dim);
+          font:inherit;font-size:12px;padding:4px 12px;border-radius:6px;cursor:pointer;gap:5px;align-items:center}
+.btn-back:hover{color:var(--ink);border-color:var(--dim)}
+.btn-back.show{display:flex}
+.stress-lbl{color:var(--dim);font-size:11px}
+.btn-stress{background:transparent;border:1px solid var(--line);color:var(--dim);
+            font:inherit;font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer}
+.btn-stress:hover{border-color:var(--dim);color:var(--ink)}
+
+/* ── BROWSE VIEW ── */
+#browse{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#cat-nav{flex-shrink:0;display:flex;gap:4px;padding:12px 20px;
+         border-bottom:1px solid var(--line);background:var(--panel);overflow-x:auto}
+.cat-btn{background:transparent;border:1px solid transparent;color:var(--dim);
+         font:inherit;font-size:12px;font-weight:500;padding:5px 14px;border-radius:20px;cursor:pointer;
+         white-space:nowrap;transition:all .15s}
+.cat-btn:hover{color:var(--ink);border-color:var(--line)}
+.cat-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+#market-grid{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:24px}
+.cat-section h2{font-size:11px;font-weight:600;color:var(--dim);text-transform:uppercase;
+                letter-spacing:.1em;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.cat-section h2::after{content:'';flex:1;height:1px;background:var(--line)}
+.cards-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+
+/* ── MARKET CARD ── */
+.mcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;
+       cursor:pointer;transition:border-color .15s,transform .1s,box-shadow .15s;
+       display:flex;flex-direction:column;gap:10px;position:relative;overflow:hidden}
+.mcard:hover{border-color:#3b5080;transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,0,0,.4)}
+.card-top{display:flex;justify-content:space-between;align-items:center}
+.card-cat{font-size:10px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.08em}
+.card-stage{font-size:10px;padding:2px 7px;border-radius:99px;border:1px solid currentColor;font-weight:500}
+.s0{color:var(--dim)} .s1{color:var(--warn)} .s2{color:var(--warn)} .s3{color:var(--sell)} .s4{color:var(--halt);font-weight:700}
+.card-q{font-size:13px;font-weight:500;color:var(--ink);line-height:1.4;min-height:38px}
+.card-mid{display:flex;align-items:baseline;gap:6px}
+.card-price{font-size:32px;font-weight:700;font-family:ui-monospace,monospace;transition:color .3s;line-height:1}
+.card-price-lbl{font-size:12px;color:var(--dim);font-weight:400}
+.card-chg{font-size:11px;font-weight:600;margin-left:auto}
+.chg-up{color:var(--buy)} .chg-dn{color:var(--sell)} .chg-flat{color:var(--dim)}
+
+/* probability bar */
+.prob-bar{height:6px;border-radius:3px;overflow:hidden;display:flex;background:var(--dimmer)}
+.bar-yes{background:var(--yes);transition:width .4s ease}
+.bar-no{flex:1;background:var(--no);opacity:.6}
+
+/* bid/ask row */
+.card-ba{display:flex;justify-content:space-between;font-size:11px;font-family:ui-monospace,monospace}
+.card-bid{color:var(--buy)} .card-ask{color:var(--sell)}
+.card-spr{color:var(--dim)}
+.card-footer{display:flex;justify-content:space-between;font-size:10px;color:var(--dim)}
+
+/* sparkline on card */
+.card-spark{height:28px;width:100%}
+
+/* price flash animations */
+@keyframes flashUp{0%{color:inherit}40%{color:var(--buy)}100%{color:inherit}}
+@keyframes flashDn{0%{color:inherit}40%{color:var(--sell)}100%{color:inherit}}
+.flash-up{animation:flashUp .5s ease}
+.flash-dn{animation:flashDn .5s ease}
+
+/* ── TRADE VIEW ── */
+#trade-view{flex:1;display:none;flex-direction:column;overflow:hidden}
+#trade-hdr{flex-shrink:0;display:flex;align-items:center;gap:12px;padding:8px 16px;
+           border-bottom:1px solid var(--line);background:var(--panel);font-size:12px}
+.trade-crumb{color:var(--dim)}
+.trade-crumb b{color:var(--ink)}
+#trade-grid{flex:1;display:grid;grid-template-columns:1fr 240px 280px;overflow:hidden}
+.col{display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--line)}
+#col-right{border-right:none}
+.panel{border-bottom:1px solid var(--line);padding:9px 11px;overflow-y:auto;flex-shrink:0}
+.panel.grow{flex:1;min-height:0}
+.ph{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px;font-family:ui-monospace,monospace}
+
+/* order book */
+.bk-summary{display:flex;gap:16px;margin-bottom:7px;font-size:11px;color:var(--dim)}
+.bk-summary b{color:var(--ink)}
+table.bk{width:100%;border-collapse:collapse}
+table.bk td{padding:1.5px 3px;font-family:ui-monospace,monospace;font-size:12px}
+.bk-ap{color:var(--sell);text-align:right;min-width:48px;font-weight:600}
+.bk-bp{color:var(--buy);min-width:48px;font-weight:600}
+.bk-aq{color:var(--dim);font-size:11px;text-align:left}
+.bk-bq{color:var(--dim);font-size:11px;text-align:right}
+.bk-bar{width:56px;height:10px;vertical-align:middle}
+.bk-ltp td{text-align:center;padding:5px 0;font-size:13px;font-weight:700;color:var(--warn);
+           font-family:ui-monospace,monospace;
+           border-top:1px solid var(--dimmer);border-bottom:1px solid var(--dimmer)}
+.bk-user{color:var(--user);font-size:10px;text-align:center;width:12px}
+
+/* tape */
+#pnl-tape{max-height:150px}
+.tp-row{display:flex;gap:7px;padding:1px 0;font-size:11px;font-family:ui-monospace,monospace}
+.tp-buy{color:var(--buy)} .tp-sell{color:var(--sell)}
+.tp-p{font-weight:600;min-width:48px} .tp-q{color:var(--dim);min-width:28px}
+.tp-t{color:var(--dimmer);margin-left:auto;font-size:10px}
+
+/* order entry */
+.tog-row{display:flex;gap:2px;margin-bottom:6px}
+.tog{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--dim);
+     font:inherit;font-size:11px;padding:4px;border-radius:4px;cursor:pointer;text-align:center}
+.t-yes{background:rgba(59,130,246,.15);border-color:var(--accent);color:var(--accent)}
+.t-no{background:rgba(245,158,11,.15);border-color:var(--user);color:var(--user)}
+.t-buy{background:rgba(34,197,94,.12);border-color:var(--buy);color:var(--buy)}
+.t-sell{background:rgba(239,68,68,.12);border-color:var(--sell);color:var(--sell)}
+.t-on{background:var(--panel2);border-color:var(--dim);color:var(--ink)}
+.fl{font-size:10px;color:var(--dim);margin-bottom:2px;margin-top:4px}
+.fi{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+    font:inherit;font-size:12px;padding:5px 7px;border-radius:4px;font-family:ui-monospace,monospace}
+.fi:focus{outline:none;border-color:var(--accent)}
+#btn-place{width:100%;background:var(--buy);border:none;color:#fff;font:inherit;
+           font-weight:600;font-size:12px;padding:7px;border-radius:4px;cursor:pointer;margin-top:6px}
+#btn-place:hover{filter:brightness(1.1)}
+#btn-place.sell{background:var(--sell)}
+.entry-ref{font-size:10px;color:var(--dim);margin-bottom:6px}
+.entry-ref span{color:var(--ink);font-family:ui-monospace,monospace}
+#entry-msg{font-size:11px;min-height:14px;margin-top:5px}
+.msg-ok{color:var(--buy)} .msg-err{color:var(--sell)}
+
+/* open orders */
+.ord-row{display:flex;align-items:center;gap:5px;padding:2px 0;font-size:11px;
+         border-bottom:1px solid var(--dimmer);font-family:ui-monospace,monospace}
+.ord-row:last-child{border-bottom:none}
+.btn-x{background:transparent;border:1px solid var(--line);color:var(--sell);
+       font:inherit;font-size:10px;padding:1px 5px;border-radius:3px;cursor:pointer;flex-shrink:0}
+.btn-x:hover{border-color:var(--sell)}
+
+/* position */
+.pos-mkt{font-size:10px;color:var(--dim);margin-bottom:2px;font-family:ui-monospace,monospace}
+.pos-row{display:flex;gap:10px;font-size:11px;flex-wrap:wrap;font-family:ui-monospace,monospace}
+.pos-item{color:var(--dim)}
+.pos-item b{color:var(--ink)}
+
+/* maker */
+.mk-row{display:flex;justify-content:space-between;align-items:baseline;margin:1.5px 0;font-size:11px}
+.mk-lbl{color:var(--dim)} .mk-val{font-weight:600;font-family:ui-monospace,monospace}
+.divider{height:1px;background:var(--line);margin:6px 0}
+.spr-bar{display:flex;height:4px;border-radius:2px;overflow:hidden;margin:3px 0;gap:1px}
+.spr-legend{display:flex;gap:8px;font-size:10px;color:var(--dim);margin-bottom:4px}
+.spill{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:2px;vertical-align:middle}
+
+/* risk tree */
+.rt-row{display:flex;align-items:center;gap:5px;padding:2px 0;font-size:11px;font-family:ui-monospace,monospace}
+.rt-row.binding{background:rgba(245,158,11,.07);border-left:2px solid var(--user);padding-left:4px}
+.rt-id{flex:1;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rt-id.bi{color:var(--user)} .rt-pct{min-width:30px;text-align:right;color:var(--ink)}
+.rt-bar{width:44px;height:5px;background:var(--dimmer);border-radius:2px;overflow:hidden}
+.rt-fill{height:100%;border-radius:2px} .rt-s{min-width:20px;text-align:center;font-size:10px}
+.i1{padding-left:10px} .i2{padding-left:20px} .i3{padding-left:30px}
+
+/* stage pill */
+.sp{display:inline-block;font-size:10px;padding:1px 6px;border-radius:99px;border:1px solid currentColor}
+
+/* ── COMPARISON PANEL ── */
+#cmp-wrap{flex-shrink:0;border-top:1px solid var(--line);background:var(--panel);overflow-x:auto;max-height:120px}
+.cmp-hdr{display:flex;align-items:center;gap:10px;padding:5px 16px 3px;font-size:10px}
+.cmp-title{color:var(--dim);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+#cmp-status{margin-left:auto;font-size:10px}
+table#cmp-table{width:100%;border-collapse:collapse;font-size:11px;font-family:ui-monospace,monospace}
+#cmp-table th{text-align:right;padding:2px 10px;font-weight:400;color:var(--dim)}
+#cmp-table th:first-child,#cmp-table th:nth-child(2){text-align:left}
+#cmp-table td{padding:2px 10px;border-top:1px solid var(--dimmer)}
+
+/* misc */
+.empty{color:var(--dimmer);font-size:11px;font-style:italic}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--dimmer);border-radius:2px}
+</style>
+
+<!-- ═══════════════════════════════ HTML ═══════════════════════════════ -->
+
+<div id="hdr">
+  <div>
+    <div class="brand">Baazi <em>Markets</em></div>
+  </div>
+  <div class="hdr-right">
+    <button class="btn-back" id="btn-back" onclick="goBack()">&#8592; Markets</button>
+    <button class="btn-stress" id="btn-agents" onclick="toggleAgents()" style="margin-right:6px"></button>
+    <span class="stress-lbl">Stress:</span>
+    <button class="btn-stress" onclick="stress('politics')">Politics</button>
+    <button class="btn-stress" onclick="stress('sports')">Sports</button>
+    <button class="btn-stress" onclick="stress('economy')">Economy</button>
+    <button class="btn-stress" onclick="stress('mentions')">Mentions</button>
+  </div>
+</div>
+
+<!-- ── BROWSE VIEW ── -->
+<div id="browse">
+  <div id="cat-nav">
+    <button class="cat-btn active" onclick="setCat('ALL')">All Markets</button>
+    <button class="cat-btn" onclick="setCat('politics')">&#128257; Politics</button>
+    <button class="cat-btn" onclick="setCat('sports')">&#9917; Sports</button>
+    <button class="cat-btn" onclick="setCat('economy')">&#128200; Economy</button>
+    <button class="cat-btn" onclick="setCat('mentions')">&#128172; Mentions</button>
+  </div>
+  <div id="market-grid"></div>
+</div>
+
+<!-- ── TRADE VIEW ── -->
+<div id="trade-view">
+  <div id="trade-hdr">
+    <span class="trade-crumb" id="trade-crumb">Markets</span>
+  </div>
+  <div id="trade-grid">
+    <div class="col" id="col-left">
+      <div class="panel grow" id="pnl-book">
+        <div class="ph">Order Book</div>
+        <div id="bk-summary" class="bk-summary"></div>
+        <div id="bk-body"></div>
+      </div>
+      <div class="panel" id="pnl-tape">
+        <div class="ph">Trade Tape</div>
+        <div id="tape-body"></div>
+      </div>
+    </div>
+    <div class="col" id="col-mid">
+      <div class="panel" id="pnl-entry">
+        <div class="ph">Order Entry</div>
+        <div class="entry-ref" id="entry-ref"></div>
+        <div class="tog-row" id="tog-out">
+          <button class="tog t-yes" onclick="setOutcome('YES')">YES</button>
+          <button class="tog" onclick="setOutcome('NO')">NO</button>
+        </div>
+        <div class="tog-row" id="tog-side">
+          <button class="tog t-buy" onclick="setSide('BUY')">BUY</button>
+          <button class="tog" onclick="setSide('SELL')">SELL</button>
+        </div>
+        <div class="tog-row" id="tog-type">
+          <button class="tog t-on" onclick="setType('LIMIT')">LIMIT</button>
+          <button class="tog" onclick="setType('MARKET')">MARKET</button>
+        </div>
+        <div id="price-wrap">
+          <div class="fl">PRICE</div>
+          <input class="fi" id="inp-price" type="number" min="0.01" max="0.99" step="0.01" placeholder="0.50"/>
+        </div>
+        <div class="fl">QTY (contracts)</div>
+        <input class="fi" id="inp-qty" type="number" min="1" step="1" placeholder="10"/>
+        <button id="btn-place" onclick="submitOrder()">BUY YES</button>
+        <div id="entry-msg"></div>
+      </div>
+      <div class="panel grow" id="pnl-orders">
+        <div class="ph">Open Orders</div>
+        <div id="orders-body"></div>
+      </div>
+      <div class="panel" id="pnl-pos">
+        <div class="ph">My Position</div>
+        <div id="pos-body"></div>
+      </div>
+    </div>
+    <div class="col" id="col-right">
+      <div class="panel" id="pnl-maker">
+        <div class="ph">Market Maker</div>
+        <div id="maker-body"></div>
+      </div>
+      <div class="panel grow" id="pnl-risk">
+        <div class="ph">Risk</div>
+        <div id="risk-body"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── COMPARISON PANEL ── -->
+<div id="cmp-wrap">
+  <div class="cmp-hdr">
+    <span class="cmp-title">Price Discovery vs External Exchanges</span>
+    <span style="color:var(--dimmer);font-size:10px">did our discovered price converge to Kalshi/Polymarket within 20%?</span>
+    <span id="cmp-status" style="color:var(--dimmer)"></span>
+  </div>
+  <table id="cmp-table">
+    <thead>
+      <tr>
+        <th style="text-align:left;padding:2px 16px">Market</th>
+        <th style="text-align:left;padding:2px 8px;max-width:150px">Question</th>
+        <th>Our price</th>
+        <th style="color:#6fa3d8">Kalshi</th>
+        <th style="color:#9b8ae0">Polymarket</th>
+        <th style="text-align:left;padding:2px 14px">Convergence</th>
+        <th>Src</th>
+      </tr>
+    </thead>
+    <tbody id="cmp-body"></tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════ JS ═══════════════════════════════ -->
+<script>
+// ── state ──
+let selId  = null;
+let selCat = 'ALL';
+let state  = null;
+let orders = [];
+let form   = { outcome:'YES', side:'BUY', type:'LIMIT' };
+const prevPrices = new Map(); // marketId → last mid for flash detection
+const ltpHistory = new Map(); // marketId → number[] for card sparkline
+const invHistory = new Map(); // marketId → number[] for maker sparkline
+const HIST = 60;
+const MODEL_IDS = new Set(['SPT-HOME-WIN','SPT-OVER-2_5','ECO-CUT-25BP','ECO-SP-ABOVE','MEN-AI-10X']);
+const PROXY_IDS = new Set(['SPT-HOME-WIN','SPT-OVER-2_5','ECO-CUT-25BP','POL-PRES-DEM']);
+const CAT_ICON  = {politics:'🗳', sports:'⚽', economy:'📈', mentions:'💬'};
+
+// ── formatters ──
+const fp  = x => x == null ? '--' : (x*100).toFixed(2);
+const fpp = x => x == null ? '--' : (x*100).toFixed(1);
+const fc  = x => (x*100).toFixed(1)+'c';
+const fts = ts => new Date(ts).toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+// ── sparkline ──
+function spark(data, w, h, clr) {
+  if (!data || data.length < 2) return `<svg width="${w}" height="${h}"></svg>`;
+  const mn=Math.min(...data,0), mx=Math.max(...data,0);
+  const r=mx-mn||1;
+  const sy=v=>h-((v-mn)/r*(h-2))-1;
+  const pts=data.map((v,i)=>`${(i/(data.length-1)*w).toFixed(1)},${sy(v).toFixed(1)}`).join(' ');
+  const zy=sy(0).toFixed(1);
+  return `<svg width="${w}" height="${h}" style="display:block;overflow:visible">
+    <line x1="0" y1="${zy}" x2="${w}" y2="${zy}" stroke="var(--dimmer)" stroke-width="1"/>
+    <polyline points="${pts}" fill="none" stroke="${clr}" stroke-width="1.5" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+function ltpSpark(data, w, h) {
+  if (!data || data.length < 2) return `<svg width="${w}" height="${h}"></svg>`;
+  const mn=Math.min(...data), mx=Math.max(...data);
+  const r=mx-mn||0.001;
+  const sy=v=>h-((v-mn)/r*(h-2))-1;
+  const pts=data.map((v,i)=>`${(i/(data.length-1)*w).toFixed(1)},${sy(v).toFixed(1)}`).join(' ');
+  const last=data[data.length-1], prev=data[data.length-2]??last;
+  const clr=last>prev?'var(--buy)':last<prev?'var(--sell)':'var(--dim)';
+  const fill=last>prev?'rgba(34,197,94,.06)':last<prev?'rgba(239,68,68,.06)':'transparent';
+  const close=`${((data.length-1)/(data.length-1)*w).toFixed(1)},${h} 0,${h}`;
+  return `<svg width="${w}" height="${h}" style="display:block">
+    <polygon points="${pts} ${close}" fill="${fill}"/>
+    <polyline points="${pts}" fill="none" stroke="${clr}" stroke-width="1.5" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+// ── price discovery bar ──
+// Shows where the price is being discovered: prior → discovered, with a marker
+// for the current blended reference and (for the demo) the hidden fundamental.
+function renderDiscoveryBar(disc, fundamental) {
+  if (!disc || disc.weight < 0.005) {
+    return `<div style="height:18px;display:flex;align-items:center;font-size:9px;color:var(--dimmer)">awaiting flow…</div>`;
+  }
+  const pct = v => Math.min(98, Math.max(2, v*100));
+  const prior = pct(disc.modelPrior), discd = pct(disc.discovered), ref = pct(disc.blended);
+  const fund = fundamental!=null ? pct(fundamental) : null;
+  const wpct = (disc.weight*100).toFixed(0);
+  return `<div style="margin:2px 0">
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--dim);margin-bottom:2px">
+      <span>discovery ${wpct}%</span><span>vol ${disc.volume}</span>
+    </div>
+    <div style="position:relative;height:6px;background:var(--dimmer);border-radius:3px">
+      <div style="position:absolute;left:${Math.min(prior,ref)}%;width:${Math.abs(ref-prior)}%;height:100%;background:rgba(59,130,246,.3);border-radius:3px"></div>
+      <div style="position:absolute;left:${prior}%;top:-2px;width:1px;height:10px;background:var(--dim)" title="prior"></div>
+      <div style="position:absolute;left:${ref}%;top:-3px;width:2px;height:12px;background:var(--accent)" title="reference"></div>
+      ${fund!=null?`<div style="position:absolute;left:${fund}%;top:-3px;width:2px;height:12px;background:var(--warn)" title="true value"></div>`:''}
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--dimmer);margin-top:2px">
+      <span style="color:var(--dim)">prior ${(disc.modelPrior*100).toFixed(0)}</span>
+      <span style="color:var(--accent)">ref ${(disc.blended*100).toFixed(0)}</span>
+      ${fund!=null?`<span style="color:var(--warn)">true ${(fundamental*100).toFixed(0)}</span>`:''}
+    </div>
+  </div>`;
+}
+
+// ── poll ──
+async function fetchAll() {
+  try {
+    const [s,o] = await Promise.all([
+      fetch('/api/state').then(r=>r.json()),
+      fetch('/api/orders').then(r=>r.json()),
+    ]);
+    state=s; orders=o;
+    if (!selId && s.markets.length) {}; // don't auto-select
+    for (const m of s.markets) {
+      // LTP history
+      if (!ltpHistory.has(m.marketId)) ltpHistory.set(m.marketId,[]);
+      const lh=ltpHistory.get(m.marketId);
+      const mid=m.yes.bid!=null&&m.yes.ask!=null?(m.yes.bid+m.yes.ask)/2:m.ltp;
+      if (mid!=null){lh.push(mid);if(lh.length>HIST)lh.shift();}
+      // inventory history
+      if (!invHistory.has(m.marketId)) invHistory.set(m.marketId,[]);
+      const ih=invHistory.get(m.marketId);
+      ih.push(m.inventory);if(ih.length>HIST)ih.shift();
+    }
+    render();
+  } catch(e){console.error(e);}
+}
+setInterval(fetchAll,300);
+fetchAll();
+
+// ── route ──
+function render() {
+  if (!state) return;
+  syncAgentBtn();
+  if (selId) {
+    document.getElementById('browse').style.display='none';
+    document.getElementById('trade-view').style.display='flex';
+    document.getElementById('btn-back').className='btn-back show';
+    const m=state.markets.find(x=>x.marketId===selId);
+    document.getElementById('trade-crumb').innerHTML=
+      `<span style="color:var(--dim);cursor:pointer" onclick="goBack()">Markets</span>
+       <span style="color:var(--dim)"> / ${m?.category??''}</span>
+       <span style="color:var(--ink);font-weight:600"> / ${selId}</span>`;
+    renderBook(m); renderTape(state.trades,selId); renderOrders();
+    renderPosition(); renderMaker(m); renderRisk(state.risk,m); refreshEntryRef(m);
+  } else {
+    document.getElementById('browse').style.display='flex';
+    document.getElementById('trade-view').style.display='none';
+    document.getElementById('btn-back').className='btn-back';
+    renderBrowse();
+  }
+}
+
+function goBack() { selId=null; render(); }
+function selectMkt(id) { selId=id; render(); }
+
+function setCat(c) {
+  selCat=c;
+  document.querySelectorAll('.cat-btn').forEach(b=>{
+    b.className='cat-btn'+(b.textContent.toLowerCase().includes(c.toLowerCase())||(c==='ALL'&&b.textContent.includes('All'))?' active':'');
+  });
+  renderBrowse();
+}
+
+// ── BROWSE ──
+function renderBrowse() {
+  if (!state) return;
+  const cats = selCat==='ALL'
+    ? ['politics','sports','economy','mentions']
+    : [selCat];
+
+  const grid = document.getElementById('market-grid');
+  grid.innerHTML = cats.map(cat => {
+    const markets = state.markets.filter(m=>m.category===cat);
+    if (!markets.length) return '';
+    const icon = CAT_ICON[cat]??'';
+    return `<div class="cat-section">
+      <h2>${icon} ${cat.charAt(0).toUpperCase()+cat.slice(1)}</h2>
+      <div class="cards-row">${markets.map(renderCard).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderCard(m) {
+  const mid = m.yes.bid!=null&&m.yes.ask!=null?(m.yes.bid+m.yes.ask)/2:m.ltp;
+  const prev = prevPrices.get(m.marketId);
+  let flashCls='';
+  if (prev!=null&&mid!=null) {
+    if (mid>prev+0.0005) flashCls='flash-up';
+    else if (mid<prev-0.0005) flashCls='flash-dn';
+  }
+  if (mid!=null) prevPrices.set(m.marketId,mid);
+
+  const pct = mid!=null ? (mid*100) : 50;
+  const chgAmt = prev!=null&&mid!=null ? ((mid-prev)*100) : 0;
+  const chgCls = chgAmt>0.05?'chg-up':chgAmt<-0.05?'chg-dn':'chg-flat';
+  const chgStr = chgAmt>0.05?'▲':chgAmt<-0.05?'▼':'';
+
+  const lh = ltpHistory.get(m.marketId)??[];
+  const hasPos = Math.abs(m.userPosition.netYesQty) > 0.01;
+
+  const stageColors=['var(--dim)','var(--warn)','var(--warn)','var(--sell)','var(--halt)'];
+  const sclr=stageColors[m.stage];
+
+  return `<div class="mcard" onclick="selectMkt('${m.marketId}')" id="card-${m.marketId}">
+    <div class="card-top">
+      <span class="card-cat">${m.marketId}</span>
+      <span class="card-stage s${m.stage}" style="color:${sclr};border-color:${sclr}">${m.stageName}</span>
+    </div>
+    <div class="card-q">${m.question}</div>
+    <div class="card-mid">
+      <span class="card-price ${flashCls}" style="color:${mid!=null?'var(--ink)':'var(--dim)'}">${fpp(mid)}</span>
+      <span class="card-price-lbl">¢ YES</span>
+      <span class="card-chg ${chgCls}">${chgStr}</span>
+      ${hasPos?`<span style="font-size:10px;color:var(--user);margin-left:auto">● position</span>`:''}
+    </div>
+    <div class="prob-bar">
+      <div class="bar-yes" style="width:${pct.toFixed(1)}%"></div>
+      <div class="bar-no"></div>
+    </div>
+    <div class="card-ba">
+      <span class="card-bid">YES bid ${fpp(m.yes.bid)}¢</span>
+      <span class="card-spr">spr ${fc(m.spread)}</span>
+      <span class="card-ask">${fpp(m.yes.ask)}¢ ask</span>
+    </div>
+    <div style="height:28px;width:100%">${ltpSpark(lh.length>1?lh:[],280,28)}</div>
+    ${renderDiscoveryBar(m.discovery, m.fundamental)}
+    <div class="card-footer">
+      <span>ref ${fpp(m.referencePrice)}¢</span>
+      <span>inv ${m.inventory>0?'+':''}${m.inventory}</span>
+      <span>exp ${m.exposure}</span>
+    </div>
+  </div>`;
+}
+
+// ── TRADING TERMINAL (same as before) ──
+function renderBook(m) {
+  if (!m){document.getElementById('bk-summary').innerHTML='';document.getElementById('bk-body').innerHTML='<div class="empty">Select a market</div>';return;}
+  const userBidPx=new Set(),userAskPx=new Set();
+  for (const o of orders.filter(o=>o.marketId===selId)) {
+    const ys=o.outcome==='YES'?(o.side==='BUY'?'BID':'ASK'):(o.side==='BUY'?'ASK':'BID');
+    if(ys==='BID')userBidPx.add(o.yesbookPrice); else userAskPx.add(o.yesbookPrice);
+  }
+  const yb=fp(m.yes.bid),ya=fp(m.yes.ask),nb=fp(m.no.bid),na=fp(m.no.ask);
+  document.getElementById('bk-summary').innerHTML=
+    `<span>YES <b style="color:var(--buy)">${yb}</b> / <b style="color:var(--sell)">${ya}</b></span>
+     <span>NO <b style="color:var(--buy)">${nb}</b> / <b style="color:var(--sell)">${na}</b></span>`;
+  const maxQ=Math.max(...m.book.bids.map(l=>l.qty),...m.book.asks.map(l=>l.qty),1);
+  const snapBidPx=new Set(m.book.bids.map(l=>l.price));
+  const snapAskPx=new Set(m.book.asks.map(l=>l.price));
+  const deepUserAsks=[...userAskPx].filter(p=>!snapAskPx.has(p)).sort((a,b)=>b-a);
+  const deepUserBids=[...userBidPx].filter(p=>!snapBidPx.has(p)).sort((a,b)=>b-a);
+  const asksD=[...m.book.asks].reverse();
+  let rows='';
+  for(const p of deepUserAsks)rows+=`<tr style="opacity:.55"><td class="bk-aq" style="color:var(--dim)">--</td><td class="bk-bar"></td><td class="bk-ap" style="color:var(--user)">${fp(p)}</td><td class="bk-user">&#9679;</td></tr>`;
+  for(const lv of asksD){const w=Math.min(100,lv.qty/maxQ*100).toFixed(0);const u=userAskPx.has(lv.price)?'<span style="color:var(--user)">&#9679;</span>':'';rows+=`<tr><td class="bk-aq">${lv.qty}</td><td class="bk-bar"><div style="height:8px;background:rgba(239,68,68,.18);width:${w}%;min-width:2px"></div></td><td class="bk-ap">${fp(lv.price)}</td><td class="bk-user">${u}</td></tr>`;}
+  rows+=`<tr class="bk-ltp"><td colspan="4">LTP &nbsp; ${m.ltp!=null?fp(m.ltp):'--'}</td></tr>`;
+  for(const lv of m.book.bids){const w=Math.min(100,lv.qty/maxQ*100).toFixed(0);const u=userBidPx.has(lv.price)?'<span style="color:var(--user)">&#9679;</span>':'';rows+=`<tr><td class="bk-user">${u}</td><td class="bk-bp">${fp(lv.price)}</td><td class="bk-bar"><div style="height:8px;background:rgba(34,197,94,.18);width:${w}%;min-width:2px;margin-left:auto"></div></td><td class="bk-bq">${lv.qty}</td></tr>`;}
+  for(const p of deepUserBids)rows+=`<tr style="opacity:.55"><td class="bk-user">&#9679;</td><td class="bk-bp" style="color:var(--user)">${fp(p)}</td><td class="bk-bar"></td><td class="bk-bq" style="color:var(--dim)">--</td></tr>`;
+  document.getElementById('bk-body').innerHTML=`<table class="bk">${rows}</table>`;
+}
+
+function renderTape(trades,mktId) {
+  const t=(trades??[]).filter(t=>!mktId||t.marketId===mktId).slice(0,18);
+  document.getElementById('tape-body').innerHTML=t.length
+    ?t.map(tr=>{const cls=tr.takerSide==='BUY'?'tp-buy':'tp-sell';return`<div class="tp-row"><span class="tp-p ${cls}">${fp(tr.price)}</span><span class="tp-q">${tr.qty}</span><span class="${cls}">${tr.takerSide==='BUY'?'B':'S'}</span><span class="tp-t">${fts(tr.ts)}</span></div>`;}).join('')
+    :'<div class="empty">No trades yet</div>';
+}
+
+function renderMaker(m) {
+  if (!m){document.getElementById('maker-body').innerHTML='';return;}
+  const sclr=['var(--dim)','var(--warn)','var(--warn)','var(--sell)','var(--halt)'][m.stage];
+  const invClr=m.inventory>0?'var(--buy)':m.inventory<0?'var(--sell)':'var(--dim)';
+  const skew=((m.reservation-m.referencePrice)*100).toFixed(2);
+  const sb=m.spreadBase,si=m.spreadInv,sd=m.spreadDis,se=m.spreadExtra,total=sb+si+sd+se||1;
+  document.getElementById('maker-body').innerHTML=`
+    <div class="mk-row"><span class="mk-lbl">Question</span><span style="font-size:10px;color:var(--dim);max-width:140px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${m.question}">${m.question}</span></div>
+    <div class="divider"></div>
+    <div class="mk-row"><span class="mk-lbl">Reference</span><span class="mk-val">${fp(m.referencePrice)} <span style="color:var(--dim);font-size:10px">A:${fp(m.venueA)} B:${fp(m.venueB)}</span></span></div>
+    <div class="mk-row"><span class="mk-lbl">Reservation</span><span class="mk-val">${fp(m.reservation)} <span style="color:var(--dim);font-size:10px">skew ${skew}c</span></span></div>
+    <div class="mk-row"><span class="mk-lbl">LTP</span><span class="mk-val" style="color:var(--warn)">${m.ltp!=null?fp(m.ltp):'--'}</span></div>
+    <div class="divider"></div>
+    <div class="mk-row"><span class="mk-lbl">Price Discovery</span><span style="font-size:10px;color:var(--dim)">flow → true value</span></div>
+    ${renderDiscoveryBar(m.discovery, m.fundamental)}
+    <div class="divider"></div>
+    <div class="mk-row"><span class="mk-lbl">Spread</span><span class="mk-val">${fc(m.spread)}</span></div>
+    <div class="spr-bar">
+      <div style="flex:${sb/total};background:var(--accent)"></div>
+      <div style="flex:${si/total};background:var(--warn)"></div>
+      <div style="flex:${sd/total};background:var(--sell);opacity:.7"></div>
+      ${se>0?`<div style="flex:${se/total};background:var(--halt)"></div>`:''}
+    </div>
+    <div class="spr-legend">
+      <span><i class="spill" style="background:var(--accent)"></i>base ${fc(sb)}</span>
+      <span><i class="spill" style="background:var(--warn)"></i>inv ${fc(si)}</span>
+      <span><i class="spill" style="background:var(--sell);opacity:.8"></i>dis ${fc(sd)}</span>
+      ${se>0?`<span><i class="spill" style="background:var(--halt)"></i>stage ${fc(se)}</span>`:''}
+    </div>
+    <div class="divider"></div>
+    <div class="mk-row"><span class="mk-lbl">Inventory</span><span class="mk-val" style="color:${invClr}">${m.inventory>0?'+':''}${m.inventory}</span></div>
+    <div style="margin:4px 0 2px">${spark(invHistory.get(m.marketId)??[],160,32,invClr)}</div>
+    <div class="mk-row"><span class="mk-lbl">Exposure</span><span class="mk-val">${m.exposure}</span></div>
+    <div class="mk-row"><span class="mk-lbl">Quote size</span><span class="mk-val">${m.quoteSize}</span></div>
+    <div class="divider"></div>
+    <div class="mk-row"><span class="mk-lbl">Stage</span><span class="sp s${m.stage}" style="color:${sclr};border-color:${sclr}">${m.stageName}</span></div>
+    <div class="mk-row"><span class="mk-lbl">Binding</span><span style="color:var(--user);font-size:11px">${m.binding.kind} &ldquo;${m.binding.id}&rdquo; ${(m.binding.util*100).toFixed(0)}%</span></div>`;
+}
+
+function renderRisk(risk,m) {
+  if(!risk||!state){document.getElementById('risk-body').innerHTML='';return;}
+  const bKind=m?.binding?.kind,bId=m?.binding?.id;
+  const barClr=u=>u>=1?'var(--halt)':u>=.7?'var(--warn)':'var(--buy)';
+  const stageClr=s=>['var(--dim)','var(--warn)','var(--warn)','var(--sell)','var(--halt)'][s];
+  const row=(scope,indent,label)=>{const isB=scope.kind===bKind&&scope.id===bId;const pct=(scope.utilisation*100).toFixed(0);const w=Math.min(100,scope.utilisation*100).toFixed(0);
+    return`<div class="rt-row${isB?' binding':''} ${indent}"><div class="rt-id${isB?' bi':''}" title="${scope.id}">${label||scope.id}</div><div class="rt-pct">${pct}%</div><div class="rt-bar"><div class="rt-fill" style="width:${w}%;background:${barClr(scope.utilisation)}"></div></div><div class="rt-s s${scope.stage}" style="color:${stageClr(scope.stage)}">S${scope.stage}</div></div>`;};
+  const catMap=new Map();
+  for(const cat of risk.categories)catMap.set(cat.id,{scope:cat,events:new Map()});
+  for(const ev of risk.events){const m2=state.markets.find(x=>x.eventId===ev.id);if(!m2)continue;const ce=catMap.get(m2.category);if(ce)ce.events.set(ev.id,{scope:ev,markets:[]});}
+  for(const mkt of risk.markets){const m2=state.markets.find(x=>x.marketId===mkt.id);if(!m2)continue;const ce=catMap.get(m2.category);if(!ce)continue;const ee=ce.events.get(m2.eventId);if(ee)ee.markets.push(mkt);}
+  let html=row(risk.company,'','COMPANY');
+  for(const[,cd]of catMap){html+=row(cd.scope,'i1',cd.scope.id);for(const[,ed]of cd.events){html+=row(ed.scope,'i2',ed.scope.id);for(const ms of ed.markets)html+=row(ms,'i3',ms.id);}}
+  document.getElementById('risk-body').innerHTML=html;
+}
+
+function renderOrders() {
+  const el=document.getElementById('orders-body');
+  if(!orders.length){el.innerHTML='<div class="empty">No open orders</div>';return;}
+  el.innerHTML=orders.map(o=>{const sc=o.side==='BUY'?'var(--buy)':'var(--sell)';const oc=o.outcome==='YES'?'var(--accent)':'var(--user)';const px=o.originalPrice!=null?fp(o.originalPrice):'MKT';const cur=o.marketId===selId?'font-weight:600':'opacity:.7';
+    return`<div class="ord-row" style="${cur}"><span style="color:${oc};min-width:28px">${o.outcome}</span><span style="color:${sc};min-width:32px">${o.side}</span><span style="min-width:42px;text-align:right">${px}</span><span style="color:var(--dim);min-width:24px;text-align:right">x${o.qty}</span><span style="color:var(--dim);flex:1;font-size:10px;overflow:hidden;text-overflow:ellipsis">${o.marketId}</span><button class="btn-x" onclick="cancelOrder('${o.orderId}')">X</button></div>`;}).join('');
+}
+
+function renderPosition() {
+  const el=document.getElementById('pos-body');
+  if(!state){el.innerHTML='';return;}
+  const active=state.markets.filter(m=>Math.abs(m.userPosition.netYesQty)>1e-9||Math.abs(m.userPosition.realisedPnl)>1e-9);
+  if(!active.length){el.innerHTML='<div class="empty">No open positions</div>';return;}
+  el.innerHTML=active.map(m=>{
+    const p=m.userPosition;
+    const isLongYes=p.netYesQty>=0;const outcome=isLongYes?'YES':'NO';
+    const openQty=Math.abs(p.netYesQty).toFixed(0);
+    const qClr=p.netYesQty>0?'var(--buy)':p.netYesQty<0?'var(--sell)':'var(--dim)';
+    const avgStr=p.avgCostOpen!=null?(isLongYes?fp(p.avgCostOpen):fp(1-p.avgCostOpen)):'--';
+    const markStr=isLongYes?fp(p.mark):fp(1-p.mark);
+    const uClr=p.unrealisedPnl>0?'var(--buy)':p.unrealisedPnl<0?'var(--sell)':'var(--dim)';
+    const rClr=p.realisedPnl>0?'var(--buy)':p.realisedPnl<0?'var(--sell)':'var(--dim)';
+    const hasOpen=Math.abs(p.netYesQty)>1e-9;
+    return`<div style="padding:5px 0;border-bottom:1px solid var(--dimmer)">
+      <div class="pos-mkt">${m.marketId}</div>
+      ${hasOpen?`<div class="pos-row" style="margin-bottom:2px"><span class="pos-item">${outcome} <b style="color:${qClr}">+${openQty}</b></span><span class="pos-item">avg <b>${avgStr}</b></span><span class="pos-item">mark <b>${markStr}</b></span></div>`:''}
+      <div class="pos-row"><span class="pos-item">unreal <b style="color:${uClr}">${p.unrealisedPnl>=0?'+':''}${p.unrealisedPnl.toFixed(3)}</b></span><span class="pos-item">realised <b style="color:${rClr}">${p.realisedPnl>=0?'+':''}${p.realisedPnl.toFixed(3)}</b></span></div>
+    </div>`;}).join('');
+}
+
+function refreshEntryRef(m) {
+  if(!m){document.getElementById('entry-ref').innerHTML='';return;}
+  const q=form.outcome==='YES'?m.yes:m.no;
+  const bidStr=q.bid!=null?fp(q.bid):'--',askStr=q.ask!=null?fp(q.ask):'--';
+  document.getElementById('entry-ref').innerHTML=`${form.outcome} bid <span>${bidStr}</span> / ask <span>${askStr}</span>`;
+}
+
+// ── form controls ──
+function setOutcome(v){form.outcome=v;const t=document.querySelectorAll('#tog-out .tog');t[0].className=v==='YES'?'tog t-yes':'tog';t[1].className=v==='NO'?'tog t-no':'tog';const m=state?.markets?.find(x=>x.marketId===selId);refreshEntryRef(m);syncBtn();}
+function setSide(v){form.side=v;const t=document.querySelectorAll('#tog-side .tog');t[0].className=v==='BUY'?'tog t-buy':'tog';t[1].className=v==='SELL'?'tog t-sell':'tog';syncBtn();}
+function setType(v){form.type=v;const t=document.querySelectorAll('#tog-type .tog');t[0].className=v==='LIMIT'?'tog t-on':'tog';t[1].className=v==='MARKET'?'tog t-on':'tog';document.getElementById('price-wrap').style.display=v==='MARKET'?'none':'';}
+function syncBtn(){const btn=document.getElementById('btn-place');btn.textContent=`${form.side} ${form.outcome}`;btn.className=form.side==='SELL'?'sell':'';;btn.id='btn-place';}
+
+async function submitOrder(){
+  if(!selId)return;
+  const qty=parseInt(document.getElementById('inp-qty').value);
+  if(!qty||qty<1){showMsg('err','Invalid quantity');return;}
+  const body={marketId:selId,outcome:form.outcome,side:form.side,type:form.type,qty};
+  if(form.type==='LIMIT'){const price=parseFloat(document.getElementById('inp-price').value);if(isNaN(price)||price<0.01||price>0.99){showMsg('err','Price must be 0.01 to 0.99');return;}body.price=price;}
+  try{
+    const d=await fetch('/api/order',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+    if(!d.ok){showMsg('err',d.error||'Order failed');return;}
+    let msg='';
+    if(d.fills.length){const tq=d.fills.reduce((s,f)=>s+f.qty,0);const ap=d.fills.reduce((s,f)=>s+f.price*f.qty,0)/tq;msg=`Filled ${tq} @ ${fp(ap)}`;}
+    if(d.resting>1e-9)msg+=(msg?', ':'')+`${d.resting} resting`;
+    if(!msg)msg='Placed';showMsg('ok',msg);
+    orders=await fetch('/api/orders').then(r=>r.json());render();
+  }catch(e){showMsg('err','Network error');}
+}
+function showMsg(t,x){const el=document.getElementById('entry-msg');el.className=t==='ok'?'msg-ok':'msg-err';el.textContent=x;if(t==='ok')setTimeout(()=>{el.textContent='';},4000);}
+async function cancelOrder(id){try{await fetch('/api/cancel',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({orderId:id})});orders=await fetch('/api/orders').then(r=>r.json());render();}catch(e){}}
+async function stress(cat){await fetch('/api/stress',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({category:cat,side:'BUY'})});}
+
+let agentsEnabled=true;
+async function toggleAgents(){
+  agentsEnabled=!agentsEnabled;
+  await fetch('/api/agents',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({enabled:agentsEnabled})});
+  syncAgentBtn();
+}
+function syncAgentBtn(){
+  const b=document.getElementById('btn-agents');
+  if(!b)return;
+  const a=state?.agents;
+  if(a) agentsEnabled=a.enabled;
+  if(agentsEnabled){
+    b.innerHTML=`&#9679; Agents ON <span style="color:var(--dim)">(${a?a.total:0})</span>`;
+    b.style.color='var(--buy)';b.style.borderColor='var(--buy)';
+  }else{
+    b.innerHTML=`&#9675; Agents OFF <span style="color:var(--dim)">user-only</span>`;
+    b.style.color='var(--dim)';b.style.borderColor='var(--line)';
+  }
+}
+
+// ── venue comparison ──
+const PROXY_MARKETS=new Set(['SPT-HOME-WIN','SPT-OVER-2_5','ECO-CUT-25BP','POL-PRES-DEM']);
+async function fetchVenues(){try{const d=await fetch('/api/venues').then(r=>r.json());renderComparison(d);}catch(e){}}
+function convBadge(c){
+  if(c==null) return '<span style="color:var(--dimmer);font-size:10px">no ext</span>';
+  const clr=c.status==='CONVERGED'?'var(--buy)':c.status==='CLOSE'?'var(--warn)':'var(--sell)';
+  const label=c.status==='CONVERGED'?'✓ converged':c.status==='CLOSE'?'~ close':'✗ diverged';
+  return `<span style="color:${clr};font-size:10px;font-weight:600">${label} ${c.diffPct}%</span>`;
+}
+function renderComparison(payload){
+  const rows = payload.markets ?? payload; // tolerate old shape
+  const summary = payload.summary;
+  const fv=x=>x==null?'<span style="color:var(--dimmer)">--</span>':(x*100).toFixed(2);
+  let live=0;
+  document.getElementById('cmp-body').innerHTML=rows.map(r=>{
+    const hK=r.kalshi.mid!=null,hP=r.polymarket.mid!=null;if(hK||hP)live++;
+    const isM=MODEL_IDS.has(r.marketId),isSel=r.marketId===selId;
+    const isProxy=PROXY_MARKETS.has(r.marketId)&&(hK||hP);
+    const mkt=state?.markets?.find(m=>m.marketId===r.marketId);
+    const q=(mkt?.question??r.marketId).substring(0,45);
+    return`<tr style="${isSel?'background:rgba(59,130,246,.06)':''}">
+      <td style="padding:2px 16px;color:${isSel?'var(--ink)':'var(--dim)'};cursor:pointer;font-family:ui-monospace,monospace" onclick="selectMkt('${r.marketId}')">${r.marketId}${isProxy?'<span style="font-size:9px;color:var(--dimmer);margin-left:4px">~</span>':''}</td>
+      <td style="padding:2px 8px;color:var(--dimmer);font-size:10px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${q}</td>
+      <td style="text-align:right;padding:2px 10px;font-weight:600;font-family:ui-monospace,monospace">${fv(r.our)}</td>
+      <td style="text-align:right;padding:2px 10px;color:${hK?'#6fa3d8':'var(--dimmer)'};font-weight:${hK?600:400}">${fv(r.kalshi.mid)}</td>
+      <td style="text-align:right;padding:2px 10px;color:${hP?'#9b8ae0':'var(--dimmer)'};font-weight:${hP?600:400}">${fv(r.polymarket.mid)}</td>
+      <td style="padding:2px 14px">${convBadge(r.convergence)}</td>
+      <td style="padding:2px 10px"><span style="font-size:10px;color:${isM?'var(--warn)':'var(--accent)'}">${isM?'model':'sim'}</span></td>
+    </tr>`;}).join('');
+  const s=document.getElementById('cmp-status');
+  if(summary && summary.tracked>0){
+    s.innerHTML=`<span style="color:var(--buy)">${summary.converged} converged</span> · <span style="color:var(--warn)">${summary.close} close</span> · <span style="color:var(--sell)">${summary.diverged} diverged</span> <span style="color:var(--dimmer)">of ${summary.tracked} tracked</span>`;
+  } else {
+    s.textContent=live?`${live} live`:'polling external venues...';
+    s.style.color='var(--dimmer)';
+  }
+}
+setInterval(fetchVenues,8000);
+fetchVenues();
 </script>
